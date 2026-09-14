@@ -26,18 +26,30 @@ copy "$ROOT/config/hypr/autostart.lua" "$HOME/.config/hypr/autostart.lua"
 copy "$ROOT/config/omarchy-haptics" "$HOME/.config/omarchy-haptics"
 copy "$ROOT/config/omarchy-workspaces" "$HOME/.config/omarchy-workspaces"
 copy "$ROOT/config/voxtype/osd" "$HOME/.config/voxtype/osd"
+copy "$ROOT/config/voxtype/config.toml" "$HOME/.config/voxtype/config.toml"
 copy "$ROOT/config/caelestia" "$HOME/.config/caelestia"
+copy "$ROOT/config/omarchy" "$HOME/.config/omarchy"
 copy "$ROOT/config/systemd/user/voxtype.service.d" "$HOME/.config/systemd/user/voxtype.service.d"
+copy "$ROOT/config/systemd/user/omarchy-os-haptics.service" "$HOME/.config/systemd/user/omarchy-os-haptics.service"
+copy "$ROOT/config/systemd/user/omarchy-workspace-osd.service" "$HOME/.config/systemd/user/omarchy-workspace-osd.service"
 copy "$ROOT/desktop/omarchy-sounds.desktop" "$HOME/.local/share/applications/omarchy-sounds.desktop"
+copy "$ROOT/desktop/omarchy-workspace-names.desktop" "$HOME/.local/share/applications/omarchy-workspace-names.desktop"
 copy "$ROOT/share/omarchy-sounds" "$HOME/.local/share/omarchy-sounds"
 copy "$ROOT/share/omarchy-haptics/library" "$HOME/.local/share/omarchy-haptics/library"
+copy "$ROOT/share/omarchy-caelestia" "$HOME/.local/share/omarchy-caelestia"
+copy "$ROOT/report" "$HOME/.local/share/omarchy-report"
 
-# Rewrite cleanup daemon shebang to this machine's venv if present.
-CLEAN="$HOME/.local/bin/voxtype-cleanupd"
-VENV_PY="$HOME/.local/share/voxtype-cleanup/venv/bin/python"
-if [[ -f "$CLEAN" && -x "$VENV_PY" ]]; then
-  sed -i "1s|^#!.*|#!$VENV_PY|" "$CLEAN"
-fi
+# Rewrite hardcoded home paths in scripts and config.
+rewrite_home() {
+  local file="$1"
+  if [[ -f "$file" ]]; then
+    sed -i "s|/home/khettabishak/|${HOME}/|g" "$file"
+  fi
+}
+
+rewrite_home "$HOME/.local/share/omarchy-caelestia/run-in-terminal.sh"
+rewrite_home "$HOME/.local/share/omarchy-caelestia/theme-set-sync-caelestia"
+rewrite_home "$HOME/.config/voxtype/config.toml"
 
 if command -v update-desktop-database >/dev/null; then
   update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
@@ -45,6 +57,13 @@ fi
 
 if command -v systemctl >/dev/null; then
   systemctl --user daemon-reload || true
+fi
+
+# Also rewrite the cleanup daemon shebang to the local venv if it exists.
+CLEAN="$HOME/.local/bin/voxtype-cleanupd"
+VENV_PY="$HOME/.local/share/voxtype-cleanup/venv/bin/python"
+if [[ -f "$CLEAN" && -x "$VENV_PY" ]]; then
+  sed -i "1s|^#!.*|#!$VENV_PY|" "$CLEAN"
 fi
 
 echo

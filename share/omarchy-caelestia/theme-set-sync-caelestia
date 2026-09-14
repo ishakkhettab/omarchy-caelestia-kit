@@ -1,0 +1,3 @@
+#!/bin/bash
+# Re-sync Caelestia palette and wallpapers after an Omarchy theme change.
+exec /home/khettabishak/.local/bin/omarchy-sync-caelestia

@@ -79,6 +79,10 @@ drop-in, and prints leftover model-download commands.
    - `omarchy-workspace-osd`
    - `voxtype-cleanupd`
 
+8. Enable workspace-osd systemd service: `systemctl --user enable --now omarchy-workspace-osd.service`
+
+9. Optional: open workspace names editor with `omarchy-workspace-names` (Super+Space → Workspace Names) or the desktop entry.
+
 ## Do not copy from the source PC
 
 - `~/.local/share/voxtype/models/` (hundreds of MB)
