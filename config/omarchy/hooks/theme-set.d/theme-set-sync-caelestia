@@ -1,3 +1,5 @@
 #!/bin/bash
 # Re-sync Caelestia palette and wallpapers after an Omarchy theme change.
+# Also plays a theme-change sound.
 exec /home/khettabishak/.local/bin/omarchy-sync-caelestia
+pw-play --volume=0.9 /home/khettabishak/.local/share/omarchy-haptics/library/switch31.wav 2>/dev/null

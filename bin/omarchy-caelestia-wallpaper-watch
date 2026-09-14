@@ -11,6 +11,7 @@ sync_now() {
   mkdir -p "$(dirname "$PATH_FILE")"
   printf '%s\n' "$src" >"$PATH_FILE"
   "${HOME}/.local/bin/omarchy-sync-caelestia" >/dev/null 2>&1 || true
+  pw-play --volume=0.85 /home/khettabishak/.local/share/omarchy-haptics/library/switch34.wav 2>/dev/null || true
 }
 
 sync_now
