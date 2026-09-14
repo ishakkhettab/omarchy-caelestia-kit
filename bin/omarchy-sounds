@@ -56,6 +56,9 @@ def load_cfg() -> dict:
 def save_cfg(data: dict) -> None:
     CFG.parent.mkdir(parents=True, exist_ok=True)
     CFG.write_text(json.dumps(load_merged(data), indent=2) + "\n")
+    sync = HOME / ".local/bin/omarchy-kit-sync"
+    if sync.is_file():
+        subprocess.Popen([str(sync), "--quiet"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def load_merged(data: dict) -> dict:

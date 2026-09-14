@@ -82,7 +82,7 @@ def parse_colors() -> dict[str, str]:
 def workspace_title(wid: str, cfg: dict) -> tuple[str, str]:
     names = cfg.get("names") or {}
     key = "10" if wid in ("0", "10") else wid
-    title = names.get(key) or names.get(wid) or f"Workspace {key}"
+    title = str(names.get(key) or names.get(wid) or "").strip()
     label = "10" if key == "10" else key
     return label, title
 
@@ -235,6 +235,8 @@ class WorkspaceOsd(Gtk.Application):
                 return False
         self.last_id = wid
         num, name = workspace_title(wid, self.cfg)
+        if not name:
+            return False
         self.kicker.set_text(f"WORKSPACE  {num}")
         self.title_l.set_text(name)
         self.phase = "in"

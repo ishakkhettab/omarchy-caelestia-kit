@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "master_volume": 0.24,
+  "master_volume": 0.37,
   "events": {
     "window_open": {
       "enabled": true,
@@ -14,8 +14,8 @@
     },
     "workspace": {
       "enabled": true,
-      "file": "switch7.wav",
-      "volume": 1.0
+      "file": "switch32.wav",
+      "volume": 0.55
     },
     "window_switch": {
       "enabled": true,

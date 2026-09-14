@@ -127,7 +127,9 @@ def listen() -> None:
                 play_event("window_open")
             elif event == "closewindow":
                 play_event("window_close")
-            elif event in ("workspace", "workspacev2"):
+            elif event == "workspacev2":
+                if now - last_workspace < 0.15:
+                    continue
                 last_workspace = now
                 play_event("workspace")
             elif event in ("activewindow", "activewindowv2"):
