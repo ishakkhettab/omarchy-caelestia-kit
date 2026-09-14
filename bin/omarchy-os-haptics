@@ -150,10 +150,8 @@ def listen() -> None:
                 play_event("fullscreen")
             elif event == "changefloatingmode":
                 play_event("float")
-            elif event == "themechange":
-                play_event("theme_change")
-            elif event == "hyprpaper":
-                play_event("wallpaper_change")
+            elif event in ("themechange", "hyprpaper", "hyprspavor"):
+                play_event("theme_change" if event == "themechange" else "wallpaper_change")
 
 
 if __name__ == "__main__":
