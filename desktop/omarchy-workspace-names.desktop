@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Workspace Names
+Comment=Name Hyprland workspaces
+Exec=/home/khettabishak/.local/bin/omarchy-workspace-names
+Icon=preferences-desktop-workspaces
+Terminal=false
+Type=Application
+Categories=Settings;
+StartupNotify=true

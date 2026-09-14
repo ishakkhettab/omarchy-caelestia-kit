@@ -1,0 +1,115 @@
+#!/usr/bin/python3
+"""Workspace name editor. Binds 127.0.0.1:17843."""
+from __future__ import annotations
+
+import json
+import socket
+import subprocess
+import sys
+import webbrowser
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import urlparse
+
+HOME = Path.home()
+HOST = "127.0.0.1"
+PORT = 17843
+APP = HOME / ".local/share/omarchy-workspaces/app/index.html"
+CFG = HOME / ".config/omarchy-workspaces/names.json"
+SYNC = HOME / ".local/bin/omarchy-kit-sync"
+
+DEFAULTS = {
+    "hold_ms": 980,
+    "fade_in_ms": 220,
+    "fade_out_ms": 420,
+    "names": {str(i): "" for i in range(1, 11)},
+}
+
+
+def load_cfg() -> dict:
+    data = json.loads(json.dumps(DEFAULTS))
+    if CFG.is_file():
+        raw = json.loads(CFG.read_text())
+        data["hold_ms"] = int(raw.get("hold_ms", data["hold_ms"]))
+        data["fade_in_ms"] = int(raw.get("fade_in_ms", data["fade_in_ms"]))
+        data["fade_out_ms"] = int(raw.get("fade_out_ms", data["fade_out_ms"]))
+        names = raw.get("names") or {}
+        for i in range(1, 11):
+            data["names"][str(i)] = str(names.get(str(i), "")).strip()
+    return data
+
+
+def save_cfg(data: dict) -> None:
+    cfg = load_cfg()
+    names = data.get("names") or {}
+    for i in range(1, 11):
+        cfg["names"][str(i)] = str(names.get(str(i), "")).strip()
+    CFG.parent.mkdir(parents=True, exist_ok=True)
+    CFG.write_text(json.dumps(cfg, indent=2) + "\n")
+    if SYNC.is_file():
+        subprocess.Popen(
+            [str(SYNC), "--quiet"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, fmt, *args):
+        return
+
+    def _send(self, code: int, body: bytes, ctype: str) -> None:
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self) -> None:
+        if urlparse(self.path).path in ("/", "/index.html"):
+            self._send(200, APP.read_bytes(), "text/html; charset=utf-8")
+            return
+        if urlparse(self.path).path == "/api/config":
+            self._send(200, json.dumps(load_cfg()).encode(), "application/json")
+            return
+        self._send(404, b"not found", "text/plain")
+
+    def do_POST(self) -> None:
+        n = int(self.headers.get("Content-Length", "0"))
+        raw = self.rfile.read(n) if n else b"{}"
+        if urlparse(self.path).path != "/api/config":
+            self._send(404, b"not found", "text/plain")
+            return
+        try:
+            data = json.loads(raw.decode() or "{}")
+        except json.JSONDecodeError:
+            self._send(400, b"bad json", "text/plain")
+            return
+        save_cfg(data)
+        self._send(200, b'{"ok":true}', "application/json")
+
+
+def port_open() -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.3)
+        return s.connect_ex((HOST, PORT)) == 0
+
+
+def main() -> None:
+    url = f"http://{HOST}:{PORT}/"
+    if port_open():
+        webbrowser.open(url)
+        return
+    httpd = ThreadingHTTPServer((HOST, PORT), Handler)
+    webbrowser.open(url)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        httpd.server_close()
+
+
+if __name__ == "__main__":
+    sys.exit(main() or 0)

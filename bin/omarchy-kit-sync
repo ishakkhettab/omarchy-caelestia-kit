@@ -1,0 +1,133 @@
+#!/usr/bin/python3
+"""Copy this PC's overlay into the kit repo and push to GitHub."""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+HOME = Path.home()
+REPO = HOME / "Projects/omarchy-caelestia-kit"
+HOSTS = HOME / ".config/gh/hosts.yml"
+QUIET = "--quiet" in sys.argv
+
+
+def log(msg: str) -> None:
+    if not QUIET:
+        print(msg)
+
+
+def copy(src: Path, dest: Path) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if src.is_dir():
+        if dest.exists():
+            shutil.rmtree(dest)
+        shutil.copytree(src, dest)
+    elif src.is_file():
+        shutil.copy2(src, dest)
+
+
+def token_and_user() -> tuple[str, str]:
+    token = user = ""
+    for line in HOSTS.read_text().splitlines():
+        s = line.strip()
+        if s.startswith("oauth_token:"):
+            token = s.split(":", 1)[1].strip()
+        if s.startswith("user:"):
+            user = s.split(":", 1)[1].strip()
+    if not token or not user:
+        raise SystemExit("GitHub not logged in")
+    return token, user
+
+
+def snapshot() -> None:
+    bin_dest = REPO / "bin"
+    bin_dest.mkdir(parents=True, exist_ok=True)
+    for name in [
+        "omarchy-caelestia-start",
+        "omarchy-caelestia-stop",
+        "omarchy-caelestia-toggle-bar",
+        "omarchy-caelestia-wallpaper-watch",
+        "omarchy-os-haptics",
+        "omarchy-sounds",
+        "omarchy-sync-caelestia",
+        "omarchy-voxtype-orb",
+        "omarchy-window-opacity-cycle",
+        "omarchy-workspace-osd",
+        "omarchy-workspace-vanish",
+        "omarchy-workspace-names",
+        "omarchy-kit-sync",
+        "caelestia-omarchy-shim",
+        "voxtype-cleanup",
+        "voxtype-cleanupd",
+    ]:
+        src = HOME / ".local/bin" / name
+        if src.is_file():
+            shutil.copy2(src, bin_dest / name)
+            (bin_dest / name).chmod(0o755)
+    copy(HOME / ".config/hypr/looknfeel.lua", REPO / "config/hypr/looknfeel.lua")
+    copy(HOME / ".config/hypr/bindings.lua", REPO / "config/hypr/bindings.lua")
+    copy(HOME / ".config/hypr/autostart.lua", REPO / "config/hypr/autostart.lua")
+    copy(HOME / ".config/omarchy-haptics", REPO / "config/omarchy-haptics")
+    copy(HOME / ".config/omarchy-workspaces", REPO / "config/omarchy-workspaces")
+    copy(HOME / ".config/voxtype/osd", REPO / "config/voxtype/osd")
+    copy(HOME / ".config/caelestia", REPO / "config/caelestia")
+    copy(
+        HOME / ".config/systemd/user/voxtype.service.d",
+        REPO / "config/systemd/user/voxtype.service.d",
+    )
+    hap = HOME / ".config/systemd/user/omarchy-os-haptics.service"
+    if hap.is_file():
+        copy(hap, REPO / "config/systemd/user/omarchy-os-haptics.service")
+    copy(HOME / ".local/share/applications/omarchy-sounds.desktop", REPO / "desktop/omarchy-sounds.desktop")
+    names_desk = HOME / ".local/share/applications/omarchy-workspace-names.desktop"
+    if names_desk.is_file():
+        copy(names_desk, REPO / "desktop/omarchy-workspace-names.desktop")
+    copy(HOME / ".local/share/omarchy-sounds", REPO / "share/omarchy-sounds")
+    copy(HOME / ".local/share/omarchy-workspaces", REPO / "share/omarchy-workspaces")
+    copy(HOME / ".local/share/omarchy-haptics/library", REPO / "share/omarchy-haptics/library")
+    report = HOME / ".local/share/omarchy-report/index.html"
+    if report.is_file():
+        copy(report, REPO / "report/index.html")
+
+
+def git_push() -> None:
+    token, user = token_and_user()
+    env = os.environ.copy()
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GH_ASKPASS_TOKEN"] = token
+    ask = Path("/tmp/omarchy-kit-askpass")
+    ask.write_text('#!/bin/sh\nif echo "$1" | grep -qi password; then echo "$GH_ASKPASS_TOKEN"; else echo x-access-token; fi\n')
+    ask.chmod(0o700)
+    env["GIT_ASKPASS"] = str(ask)
+    subprocess.run(["git", "add", "-A"], cwd=REPO, check=True, env=env)
+    st = subprocess.run(["git", "status", "--porcelain"], cwd=REPO, check=True, capture_output=True, text=True)
+    if not st.stdout.strip():
+        log("No kit changes to push")
+        ask.unlink(missing_ok=True)
+        return
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    subprocess.run(["git", "commit", "-m", f"sync from this PC {stamp}"], cwd=REPO, check=True, env=env)
+    r = subprocess.run(["git", "push", "origin", "main"], cwd=REPO, env=env, capture_output=True, text=True)
+    ask.unlink(missing_ok=True)
+    if r.returncode != 0:
+        sys.stderr.write(r.stderr[-800:] if r.stderr else "push failed\n")
+        raise SystemExit(r.returncode)
+    log("Pushed https://github.com/ishakkhettab/omarchy-caelestia-kit")
+
+
+def main() -> int:
+    if not REPO.is_dir():
+        raise SystemExit(f"missing {REPO}")
+    snapshot()
+    git_push()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,13 @@
+[Unit]
+Description=Omarchy Kenney UI sounds
+After=graphical-session.target pipewire.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/.local/bin/omarchy-os-haptics
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=default.target

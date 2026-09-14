@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Workspace Names</title>
+  <style>
+    :root { --bg:#10110f; --card:#1a1c18; --line:#2c3028; --text:#ece7d8; --muted:#9a9484; --accent:#d4b483; --ok:#8fbf88; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 ui-sans-serif, system-ui, sans-serif; }
+    body { max-width: 640px; padding: 28px 22px 64px; }
+    h1 { font-size: 22px; font-weight: 650; margin: 0 0 4px; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); margin-bottom: 22px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin: 0 0 10px; }
+    .row { display: grid; grid-template-columns: 72px 1fr; gap: 12px; align-items: center; }
+    .key { color: var(--accent); font-weight: 650; letter-spacing: 0.08em; font-size: 12px; }
+    input[type="text"] {
+      width: 100%; background: #11130f; color: var(--text); border: 1px solid var(--line);
+      border-radius: 8px; padding: 8px 10px; font: inherit;
+    }
+    button {
+      background: var(--accent); color: #1a160e; border: 0; border-radius: 8px;
+      padding: 8px 14px; font-weight: 650; cursor: pointer; font: inherit;
+    }
+    .status { color: var(--ok); min-height: 1.2em; font-size: 12px; margin-left: 10px; }
+    .hint { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Workspace names</h1>
+  <p class="sub">Shown as a toast when you switch. Leave blank to show nothing. Super+1 … Super+0.</p>
+  <div id="rows"></div>
+  <div class="card">
+    <button id="save">Save</button>
+    <span class="status" id="status"></span>
+    <p class="hint">Saves immediately to this PC and pushes the kit to GitHub so the other Omarchy box can pull.</p>
+  </div>
+  <script>
+    const KEYS = ["1","2","3","4","5","6","7","8","9","10"];
+    let cfg = { names: {} };
+    const $ = (id) => document.getElementById(id);
+
+    function render() {
+      const root = $("rows");
+      root.innerHTML = "";
+      for (const k of KEYS) {
+        const card = document.createElement("div");
+        card.className = "card";
+        const label = k === "10" ? "Super+0" : "Super+" + k;
+        card.innerHTML = `<div class="row"><div class="key">${label}</div>
+          <input type="text" data-k="${k}" maxlength="24" placeholder="(unnamed)" value="${(cfg.names[k] || "").replace(/"/g, "&quot;")}" /></div>`;
+        root.appendChild(card);
+      }
+    }
+
+    async function load() {
+      cfg = await fetch("/api/config").then(r => r.json());
+      cfg.names = cfg.names || {};
+      render();
+    }
+
+    async function save() {
+      const names = {};
+      document.querySelectorAll("input[data-k]").forEach((el) => { names[el.dataset.k] = el.value.trim(); });
+      cfg.names = names;
+      await fetch("/api/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cfg) });
+      $("status").textContent = "Saved + syncing GitHub";
+      setTimeout(() => $("status").textContent = "", 1600);
+    }
+
+    $("save").onclick = save;
+    document.addEventListener("change", (e) => { if (e.target.dataset.k) save(); });
+    load();
+  </script>
+</body>
+</html>
