@@ -1,0 +1,18 @@
+{
+  "theme": {
+    "enableTerm": false,
+    "enableHypr": false,
+    "enableGtk": false,
+    "enableQt": false,
+    "enableDiscord": false,
+    "enableSpicetify": false,
+    "enableBtop": false,
+    "enableFuzzel": false,
+    "enableChromium": false,
+    "enableWarp": false,
+    "enableCava": false
+  },
+  "wallpaper": {
+    "postHook": "omarchy-theme-bg-set \"$WALLPAPER_PATH\"; omarchy-sync-caelestia"
+  }
+}

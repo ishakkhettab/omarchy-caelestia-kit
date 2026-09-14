@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""Super+D: vanish every window on the current workspace, restore on second press."""
+from __future__ import annotations
+
+import json
+import subprocess
+from pathlib import Path
+
+STATE = Path.home() / ".local/state/omarchy/workspace-vanish.json"
+
+
+def hypr(args: list[str]) -> str:
+    return subprocess.check_output(["hyprctl", *args], text=True)
+
+
+def dispatch(expr: str) -> None:
+    subprocess.run(["hyprctl", "dispatch", expr], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def clients() -> list[dict]:
+    return json.loads(hypr(["-j", "clients"]))
+
+
+def active_workspace() -> dict:
+    return json.loads(hypr(["-j", "activeworkspace"]))
+
+
+def move(addr: str, workspace: str) -> None:
+    lua = (
+        "hl.dsp.window.move({ workspace = %s, follow = false, window = %s })"
+        % (json.dumps(workspace), json.dumps("address:" + addr))
+    )
+    dispatch(lua)
+    dispatch(f"movetoworkspacesilent {workspace},address:{addr}")
+
+
+def vanishable(c: dict, ws_id: int) -> bool:
+    if not c.get("mapped"):
+        return False
+    if c.get("hidden"):
+        return False
+    ws = (c.get("workspace") or {}).get("id")
+    if ws != ws_id:
+        return False
+    if (c.get("workspace") or {}).get("name", "").startswith("special"):
+        return False
+    return True
+
+
+def hide() -> None:
+    ws = active_workspace()
+    ws_id = ws.get("id")
+    name = str(ws.get("name") or ws_id)
+    addrs = [c["address"] for c in clients() if vanishable(c, ws_id)]
+    if not addrs:
+        return
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    STATE.write_text(json.dumps({"workspace": name, "addresses": addrs}))
+    for addr in addrs:
+        move(addr, "special:vanish")
+
+
+def show() -> None:
+    data = json.loads(STATE.read_text())
+    workspace = str(data.get("workspace") or "1")
+    for addr in data.get("addresses") or []:
+        move(addr, workspace)
+    STATE.unlink(missing_ok=True)
+
+
+def main() -> None:
+    if STATE.exists():
+        show()
+    else:
+        hide()
+
+
+if __name__ == "__main__":
+    main()

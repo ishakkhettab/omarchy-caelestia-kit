@@ -1,0 +1,9 @@
+#!/bin/bash
+# Stop Caelestia and show the Omarchy bar again.
+
+set -euo pipefail
+
+pkill -f '[q]uickshell.*caelestia' 2>/dev/null || true
+pkill -f '[q]s .*-c caelestia' 2>/dev/null || true
+rm -f "${HOME}/.local/state/omarchy/toggles/bar-off"
+omarchy-shell -q omarchy.bar syncHidden || true

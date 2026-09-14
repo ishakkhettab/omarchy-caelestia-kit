@@ -1,0 +1,84 @@
+{
+  "appearance": {
+    "font": {
+      "clock": "Rubik",
+      "workspaces": "Rubik"
+    },
+    "rounding": {
+      "scale": 1.15
+    },
+    "transparency": {
+      "base": 0.42,
+      "enabled": true,
+      "layers": 0.22
+    }
+  },
+  "background": {
+    "enabled": true,
+    "visualiser": {
+      "autoHide": true,
+      "blur": true,
+      "enabled": true
+    },
+    "wallpaperEnabled": true
+  },
+  "bar": {
+    "persistent": false,
+    "showOnHover": true,
+    "statusIcons": [
+      {
+        "enabled": true,
+        "id": "lockStatus"
+      },
+      {
+        "enabled": true,
+        "id": "audio"
+      },
+      {
+        "enabled": true,
+        "id": "network"
+      },
+      {
+        "enabled": true,
+        "id": "bluetooth"
+      },
+      {
+        "enabled": true,
+        "id": "battery"
+      }
+    ]
+  },
+  "general": {
+    "apps": {
+      "audio": [
+        "foot"
+      ],
+      "explorer": [
+        "nautilus"
+      ],
+      "playback": [
+        "mpv"
+      ],
+      "terminal": [
+        "foot"
+      ]
+    },
+    "idle": {
+      "inhibitWhenAudio": true,
+      "lockBeforeSleep": false,
+      "timeouts": []
+    }
+  },
+  "launcher": {
+    "showOnHover": false
+  },
+  "lock": {
+    "enabled": false
+  },
+  "osd": {
+    "enabled": false
+  },
+  "paths": {
+    "wallpaperDir": "~/Pictures/Wallpapers"
+  }
+}

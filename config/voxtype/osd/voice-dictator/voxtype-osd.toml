@@ -1,0 +1,30 @@
+name = "voice-dictator"
+version = "1.0.0"
+description = "Dithered dictator orb. Ring radius follows live dictation amplitude."
+compatibility = "voxtype quickshell style packages"
+palette = "omarchy"
+layout = "custom"
+qml_entry = "VoiceDictator.qml"
+
+[colors]
+accent = "#F4F1EA"
+background = "rgba(0, 0, 0, 0.0)"
+surface = "rgba(0, 0, 0, 0.0)"
+foreground = "#F4F1EA"
+muted = "rgba(244, 241, 234, 0.55)"
+success = "#9ece6a"
+warning = "#e0af68"
+error = "#f7768e"
+recording = "#F4F1EA"
+streaming = "#C0CAF5"
+transcribing = "#e0af68"
+idle = "rgba(244, 241, 234, 0.40)"
+core = "#FFFFFF"
+glow = "rgba(255, 255, 255, 0.35)"
+grid = "rgba(255, 255, 255, 0.20)"
+
+[frame]
+background = "none"
+border = "none"
+glow = false
+halo = false

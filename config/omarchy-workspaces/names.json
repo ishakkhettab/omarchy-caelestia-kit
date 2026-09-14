@@ -1,0 +1,17 @@
+{
+  "hold_ms": 980,
+  "fade_in_ms": 220,
+  "fade_out_ms": 420,
+  "names": {
+    "1": "Work",
+    "2": "Code",
+    "3": "Web",
+    "4": "Write",
+    "5": "Chat",
+    "6": "Mail",
+    "7": "Files",
+    "8": "Make",
+    "9": "Play",
+    "10": "Lab"
+  }
+}

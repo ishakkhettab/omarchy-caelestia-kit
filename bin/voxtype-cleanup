@@ -1,0 +1,29 @@
+#!/usr/bin/python3
+"""Voxtype post-process: stdin transcript -> cleaned stdout. Falls back to input."""
+from __future__ import annotations
+
+import socket
+import sys
+import urllib.error
+import urllib.request
+
+URL = "http://127.0.0.1:17842/clean"
+
+
+def main() -> int:
+    raw = sys.stdin.read()
+    if not raw.strip():
+        sys.stdout.write(raw)
+        return 0
+    try:
+        req = urllib.request.Request(URL, data=raw.encode("utf-8"), method="POST")
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            out = resp.read().decode("utf-8", "replace")
+        sys.stdout.write(out if out.strip() else raw)
+    except (urllib.error.URLError, TimeoutError, socket.timeout, OSError):
+        sys.stdout.write(raw)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

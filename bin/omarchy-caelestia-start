@@ -1,0 +1,23 @@
+#!/bin/bash
+# Start Caelestia for looks. Omarchy shell stays up for Super+Space, Super+K,
+# lock, notifications, and the rest of the Omarchy keybinds.
+
+set -euo pipefail
+
+export PATH="${HOME}/.local/bin:${PATH}"
+export QML2_IMPORT_PATH="${HOME}/.local/lib/qt6/qml${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}"
+export QML_IMPORT_PATH="${HOME}/.local/lib/qt6/qml${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
+export CAELESTIA_LIB_DIR="${HOME}/.local/lib/caelestia"
+export LD_LIBRARY_PATH="${HOME}/.local/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export QS_NO_RELOAD_POPUP=1
+export PKG_CONFIG_PATH="${HOME}/.local/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+
+mkdir -p "${HOME}/.local/state/omarchy/toggles"
+touch "${HOME}/.local/state/omarchy/toggles/bar-off"
+omarchy-shell -q omarchy.bar syncHidden || true
+
+if pgrep -u "$USER" -x qs >/dev/null 2>&1; then
+  exit 0
+fi
+
+exec qs -n -d -c caelestia

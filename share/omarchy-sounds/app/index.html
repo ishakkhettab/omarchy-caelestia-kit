@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>System Sounds</title>
+  <style>
+    :root {
+      --bg: #10110f;
+      --card: #1a1c18;
+      --line: #2c3028;
+      --text: #ece7d8;
+      --muted: #9a9484;
+      --accent: #d4b483;
+      --ok: #8fbf88;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 ui-sans-serif, system-ui, sans-serif; }
+    body { max-width: 920px; padding: 28px 22px 64px; }
+    h1 { font-size: 22px; font-weight: 650; margin: 0 0 4px; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); margin-bottom: 22px; }
+    .row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px 16px 14px;
+      margin: 0 0 12px;
+    }
+    label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+    input[type="range"] { width: 180px; accent-color: var(--accent); }
+    select, button, input[type="checkbox"] { font: inherit; }
+    select {
+      background: #11130f;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 8px;
+      min-width: 180px;
+    }
+    button {
+      background: #262920;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    button.primary { background: var(--accent); color: #1a160e; border-color: var(--accent); font-weight: 650; }
+    .event { display: grid; grid-template-columns: 140px 1fr auto auto; gap: 10px; align-items: center; }
+    .name { font-weight: 600; }
+    .lib {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
+    }
+    .chip {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: #141612;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .chip:hover, .chip.on { border-color: var(--accent); color: var(--accent); }
+    .status { color: var(--ok); min-height: 1.2em; font-size: 12px; }
+    .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+    h2 { font-size: 15px; margin: 22px 0 10px; font-weight: 650; }
+  </style>
+</head>
+<body>
+  <h1>System Sounds</h1>
+  <p class="sub">Kenney UI / mechanical clicks for window and workspace events. Changes apply immediately.</p>
+
+  <div class="card">
+    <div class="row">
+      <label><input type="checkbox" id="enabled" /> Sounds on</label>
+      <label>Master <span id="masterLabel">34%</span></label>
+      <input type="range" id="master" min="0" max="100" value="34" />
+      <button class="primary" id="save">Save</button>
+      <span class="status" id="status"></span>
+    </div>
+  </div>
+
+  <div id="events"></div>
+
+  <h2>Library</h2>
+  <p class="hint">Click a sound to preview. Use Assign on an event, then click a library chip to set it.</p>
+  <div class="lib" id="lib"></div>
+  <p class="hint">Mechanical-feeling: switch21–switch33. Soft clicks: click1–click5. Workspace-like: switch7, switch10, switch14.</p>
+
+  <script>
+    const EVENTS = [
+      ["window_open", "Window open"],
+      ["window_close", "Window close"],
+      ["workspace", "Workspace switch"],
+      ["window_switch", "Window switch"],
+      ["fullscreen", "Fullscreen"],
+      ["float", "Float / unfloat"],
+    ];
+    let cfg = null;
+    let library = [];
+    let assignTarget = null;
+
+    const $ = (id) => document.getElementById(id);
+
+    async function load() {
+      const [c, l] = await Promise.all([
+        fetch("/api/config").then(r => r.json()),
+        fetch("/api/library").then(r => r.json()),
+      ]);
+      cfg = c;
+      library = l.files || [];
+      $("enabled").checked = !!cfg.enabled;
+      $("master").value = Math.round((cfg.master_volume || 0) * 100);
+      $("masterLabel").textContent = $("master").value + "%";
+      renderEvents();
+      renderLib();
+    }
+
+    function renderEvents() {
+      const root = $("events");
+      root.innerHTML = "";
+      for (const [key, label] of EVENTS) {
+        const ev = (cfg.events && cfg.events[key]) || { enabled: true, file: "", volume: 1 };
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <div class="event">
+            <div>
+              <div class="name">${label}</div>
+              <label><input type="checkbox" data-en="${key}" ${ev.enabled ? "checked" : ""}/> on</label>
+            </div>
+            <div>
+              <select data-file="${key}">${library.map(f => `<option ${f === ev.file ? "selected" : ""}>${f}</option>`).join("")}</select>
+            </div>
+            <div>
+              <input type="range" min="0" max="100" value="${Math.round((ev.volume || 1) * 100)}" data-vol="${key}" />
+            </div>
+            <div>
+              <button data-play="${key}">Play</button>
+              <button data-assign="${key}">Assign</button>
+            </div>
+          </div>`;
+        root.appendChild(card);
+      }
+    }
+
+    function renderLib() {
+      const root = $("lib");
+      root.innerHTML = "";
+      for (const f of library) {
+        const d = document.createElement("div");
+        d.className = "chip";
+        d.textContent = f.replace(".wav", "");
+        d.onclick = async () => {
+          if (assignTarget) {
+            cfg.events[assignTarget].file = f;
+            assignTarget = null;
+            renderEvents();
+            await save();
+          } else {
+            await fetch("/api/play", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ file: f }) });
+          }
+        };
+        root.appendChild(d);
+      }
+    }
+
+    function readUi() {
+      cfg.enabled = $("enabled").checked;
+      cfg.master_volume = Number($("master").value) / 100;
+      for (const [key] of EVENTS) {
+        const en = document.querySelector(`[data-en="${key}"]`);
+        const file = document.querySelector(`[data-file="${key}"]`);
+        const vol = document.querySelector(`[data-vol="${key}"]`);
+        cfg.events[key] = {
+          enabled: en.checked,
+          file: file.value,
+          volume: Number(vol.value) / 100,
+        };
+      }
+    }
+
+    async function save() {
+      readUi();
+      await fetch("/api/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cfg) });
+      $("status").textContent = "Saved";
+      setTimeout(() => $("status").textContent = "", 1200);
+    }
+
+    $("master").oninput = () => { $("masterLabel").textContent = $("master").value + "%"; };
+    $("save").onclick = save;
+    $("enabled").onchange = save;
+    $("master").onchange = save;
+    document.addEventListener("change", (e) => {
+      if (e.target.dataset.en || e.target.dataset.file || e.target.dataset.vol) save();
+    });
+    document.addEventListener("click", async (e) => {
+      const play = e.target.dataset.play;
+      const assign = e.target.dataset.assign;
+      if (play) {
+        readUi();
+        await fetch("/api/play", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: play }) });
+      }
+      if (assign) {
+        assignTarget = assign;
+        $("status").textContent = "Click a library sound";
+      }
+    });
+
+    load();
+  </script>
+</body>
+</html>

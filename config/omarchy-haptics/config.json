@@ -1,0 +1,36 @@
+{
+  "enabled": true,
+  "master_volume": 0.24,
+  "events": {
+    "window_open": {
+      "enabled": true,
+      "file": "click3.wav",
+      "volume": 1.0
+    },
+    "window_close": {
+      "enabled": true,
+      "file": "click2.wav",
+      "volume": 1.0
+    },
+    "workspace": {
+      "enabled": true,
+      "file": "switch7.wav",
+      "volume": 1.0
+    },
+    "window_switch": {
+      "enabled": true,
+      "file": "switch27.wav",
+      "volume": 0.06
+    },
+    "fullscreen": {
+      "enabled": true,
+      "file": "switch25.wav",
+      "volume": 1.0
+    },
+    "float": {
+      "enabled": true,
+      "file": "click1.wav",
+      "volume": 0.75
+    }
+  }
+}

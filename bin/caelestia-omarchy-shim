@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+"""Minimal Caelestia CLI so wallpaper/scheme settings work on Omarchy."""
+from __future__ import annotations
+
+import json
+import os
+import random
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+STATE = HOME / ".local/state/caelestia"
+WALL_DIR = HOME / "Pictures/Wallpapers"
+SCHEME = STATE / "scheme.json"
+WALL_PATH = STATE / "wallpaper" / "path.txt"
+
+
+def scheme_json() -> str:
+    if SCHEME.exists():
+        return SCHEME.read_text()
+    return json.dumps({"name": "omarchy", "flavour": "solitude", "mode": "dark", "colours": {}})
+
+
+def list_walls() -> list[Path]:
+    if not WALL_DIR.exists():
+        return []
+    exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
+    return [p for p in WALL_DIR.rglob("*") if p.is_file() and p.suffix.lower() in exts]
+
+
+def set_wallpaper(path: str) -> None:
+    src = Path(path).expanduser().resolve()
+    if not src.is_file():
+        print(f"No such file: {src}", file=sys.stderr)
+        sys.exit(1)
+    WALL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    WALL_PATH.write_text(str(src) + "\n")
+    try:
+        subprocess.run(["omarchy-theme-bg-set", str(src)], check=False)
+    except FileNotFoundError:
+        pass
+    subprocess.run([str(HOME / ".local/bin/omarchy-sync-caelestia")], check=False)
+    WALL_PATH.write_text(str(src) + "\n")
+
+
+def wallpaper(args: list[str]) -> None:
+    if not args or args[0] in ("-h", "--help"):
+        print("caelestia wallpaper [-f PATH] [-r] [-p PATH] [-g]")
+        return
+    if args[0] == "-f" and len(args) > 1:
+        set_wallpaper(args[1])
+        return
+    if args[0] == "-r":
+        walls = list_walls()
+        if not walls:
+            print("No wallpapers in ~/Pictures/Wallpapers", file=sys.stderr)
+            sys.exit(1)
+        set_wallpaper(str(random.choice(walls)))
+        return
+    if args[0] == "-p" and len(args) > 1:
+        # Preview colours: keep Omarchy-synced scheme so the OS stays one palette.
+        sys.stdout.write(scheme_json())
+        return
+    if args[0] in ("-g", "--get"):
+        print(WALL_PATH.read_text().strip() if WALL_PATH.exists() else "")
+        return
+    print("Unknown wallpaper args", file=sys.stderr)
+    sys.exit(1)
+
+
+def scheme(args: list[str]) -> None:
+    if not args or args[0] in ("-h", "--help"):
+        print("caelestia scheme [get|set ...]")
+        return
+    if args[0] == "get":
+        print(scheme_json())
+        return
+    if args[0] == "set":
+        # Always re-sync from Omarchy so windows and shell stay one OS.
+        subprocess.run([str(HOME / ".local/bin/omarchy-sync-caelestia")], check=False)
+        print(scheme_json())
+        return
+    print("Unknown scheme args", file=sys.stderr)
+    sys.exit(1)
+
+
+def shell(args: list[str]) -> None:
+    if args and args[0] in ("-d",):
+        os.execvp(str(HOME / ".local/bin/omarchy-caelestia-start"), ["omarchy-caelestia-start"])
+    print("caelestia shell -d")
+
+
+def main() -> None:
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+        print("caelestia [wallpaper|scheme|shell]")
+        return
+    cmd, *rest = sys.argv[1:]
+    rest = [a for a in rest if a != "--no-smart"]
+    if cmd == "wallpaper":
+        wallpaper(rest)
+    elif cmd == "scheme":
+        scheme(rest)
+    elif cmd == "shell":
+        shell(rest)
+    else:
+        print(f"unimplemented: {cmd}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

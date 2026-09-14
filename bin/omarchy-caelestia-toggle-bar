@@ -1,0 +1,14 @@
+#!/bin/bash
+# Toggle Caelestia bar persistence (Super+Shift+Space). Omarchy's bar stays hidden.
+
+set -euo pipefail
+
+CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/caelestia/shell.json"
+mkdir -p "$(dirname "$CONFIG")"
+[[ -f $CONFIG ]] || echo '{}' >"$CONFIG"
+
+tmp="$(mktemp)"
+jq '
+  .bar = (.bar // {}) |
+  .bar.persistent = ((.bar.persistent // true) | not)
+' "$CONFIG" >"$tmp" && mv "$tmp" "$CONFIG"

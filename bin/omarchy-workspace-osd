@@ -1,0 +1,309 @@
+#!/usr/bin/python3
+"""Cinematic workspace title overlay for Hyprland."""
+from __future__ import annotations
+
+import json
+import os
+import socket
+import sys
+import threading
+import time
+from pathlib import Path
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
+gi.require_version("Gtk4LayerShell", "1.0")
+from gi.repository import Gdk, GLib, Gtk, Gtk4LayerShell as LayerShell
+
+HOME = Path.home()
+CFG = HOME / ".config/omarchy-workspaces/names.json"
+COLORS = HOME / ".local/state/omarchy/current/theme/colors.toml"
+PID = HOME / ".local/share/omarchy-workspaces/osd.pid"
+
+DEFAULTS = {
+    "hold_ms": 980,
+    "fade_in_ms": 220,
+    "fade_out_ms": 420,
+    "names": {
+        "1": "Work",
+        "2": "Code",
+        "3": "Web",
+        "4": "Write",
+        "5": "Chat",
+        "6": "Mail",
+        "7": "Files",
+        "8": "Make",
+        "9": "Play",
+        "10": "Lab",
+    },
+}
+
+
+def load_cfg() -> dict:
+    data = json.loads(json.dumps(DEFAULTS))
+    if CFG.is_file():
+        try:
+            raw = json.loads(CFG.read_text())
+        except json.JSONDecodeError:
+            return data
+        data["hold_ms"] = int(raw.get("hold_ms", data["hold_ms"]))
+        data["fade_in_ms"] = int(raw.get("fade_in_ms", data["fade_in_ms"]))
+        data["fade_out_ms"] = int(raw.get("fade_out_ms", data["fade_out_ms"]))
+        names = raw.get("names") or {}
+        for k, v in names.items():
+            data["names"][str(k)] = str(v)
+    data["names"]["0"] = data["names"].get("0") or data["names"].get("10", "Lab")
+    return data
+
+
+def parse_colors() -> dict[str, str]:
+    out = {
+        "accent": "#d4b483",
+        "foreground": "#ece7d8",
+        "background": "#10110f",
+    }
+    if not COLORS.is_file():
+        return out
+    for line in COLORS.read_text().splitlines():
+        if "=" not in line or line.strip().startswith("#"):
+            continue
+        k, _, v = line.partition("=")
+        k = k.strip()
+        v = v.strip().strip('"').strip("'")
+        if k in ("accent", "foreground", "background", "bright_foreground"):
+            out[k] = v
+    if "bright_foreground" in out:
+        out["foreground"] = out["bright_foreground"]
+    return out
+
+
+def workspace_title(wid: str, cfg: dict) -> tuple[str, str]:
+    names = cfg.get("names") or {}
+    key = "10" if wid in ("0", "10") else wid
+    title = names.get(key) or names.get(wid) or f"Workspace {key}"
+    label = "10" if key == "10" else key
+    return label, title
+
+
+def rename_hypr(cfg: dict) -> None:
+    names = cfg.get("names") or {}
+    for i in range(1, 11):
+        title = names.get(str(i))
+        if not title:
+            continue
+        os.system(f"hyprctl dispatch renameworkspace {i} {json.dumps(title)} >/dev/null 2>&1")
+
+
+def hypr_socket() -> Path:
+    sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
+    if sig:
+        p = runtime / "hypr" / sig / ".socket2.sock"
+        if p.exists():
+            return p
+    socks = sorted((runtime / "hypr").glob("*/.socket2.sock"), key=lambda x: x.stat().st_mtime, reverse=True)
+    if not socks:
+        raise SystemExit("no hyprland socket")
+    return socks[0]
+
+
+class WorkspaceOsd(Gtk.Application):
+    def __init__(self, preview: str | None = None):
+        super().__init__(application_id="org.omarchy.workspace-osd")
+        self.preview = preview
+        self.cfg = load_cfg()
+        self.cfg_mtime = CFG.stat().st_mtime if CFG.exists() else 0.0
+        self.win: Gtk.Window | None = None
+        self.hud: Gtk.Box | None = None
+        self.kicker: Gtk.Label | None = None
+        self.title_l: Gtk.Label | None = None
+        self.opacity = 0.0
+        self.target = 0.0
+        self.phase = "idle"
+        self.hold_until = 0.0
+        self.last_id = ""
+        self.tick_id = 0
+
+    def do_activate(self):
+        self._build()
+        rename_hypr(self.cfg)
+        if self.preview:
+            GLib.idle_add(self.show_workspace, self.preview)
+        else:
+            threading.Thread(target=self._listen, daemon=True).start()
+            GLib.timeout_add(350, self._show_current)
+
+    def _build(self):
+        colors = parse_colors()
+        win = Gtk.Window(application=self)
+        win.set_decorated(False)
+        win.add_css_class("osd")
+        LayerShell.init_for_window(win)
+        LayerShell.set_layer(win, LayerShell.Layer.OVERLAY)
+        for edge in (LayerShell.Edge.TOP, LayerShell.Edge.BOTTOM, LayerShell.Edge.LEFT, LayerShell.Edge.RIGHT):
+            LayerShell.set_anchor(win, edge, True)
+        LayerShell.set_namespace(win, "omarchy-workspace-osd")
+        LayerShell.set_keyboard_mode(win, LayerShell.KeyboardMode.NONE)
+        LayerShell.set_exclusive_zone(win, -1)
+
+        hud = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        hud.set_halign(Gtk.Align.CENTER)
+        hud.set_valign(Gtk.Align.CENTER)
+        hud.add_css_class("hud")
+        kicker = Gtk.Label()
+        kicker.add_css_class("kicker")
+        title = Gtk.Label()
+        title.add_css_class("title")
+        hud.append(kicker)
+        hud.append(title)
+        win.set_child(hud)
+        css = Gtk.CssProvider()
+        css.load_from_data(
+            f"""
+            window.osd {{ background-color: transparent; }}
+            .hud {{
+                background-color: alpha({colors["background"]}, 0.46);
+                border: 1px solid alpha({colors["accent"]}, 0.38);
+                border-radius: 34px;
+                padding: 22px 46px 26px;
+            }}
+            .kicker {{
+                font-family: Rubik, sans-serif;
+                font-size: 12px;
+                letter-spacing: 0.34em;
+                color: {colors["accent"]};
+            }}
+            .title {{
+                font-family: Rubik, sans-serif;
+                font-size: 58px;
+                font-weight: 500;
+                color: {colors["foreground"]};
+            }}
+            """.encode()
+        )
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+        hud.set_opacity(0)
+        win.present()
+        GLib.idle_add(self._click_through, win)
+        self.win = win
+        self.hud = hud
+        self.kicker = kicker
+        self.title_l = title
+
+    def _show_current(self):
+        try:
+            import json as _json
+            import subprocess
+
+            raw = subprocess.check_output(["hyprctl", "activeworkspace", "-j"], text=True)
+            wid = str(_json.loads(raw).get("id", "1"))
+        except Exception:
+            wid = "1"
+        self.show_workspace(wid)
+        return False
+
+    def _click_through(self, win: Gtk.Window):
+        try:
+            import cairo
+
+            surf = win.get_surface()
+            if surf is not None:
+                surf.set_input_region(cairo.Region())
+        except Exception:
+            pass
+        return False
+
+    def _reload_if_needed(self):
+        try:
+            m = CFG.stat().st_mtime
+        except FileNotFoundError:
+            return
+        if m != self.cfg_mtime:
+            self.cfg_mtime = m
+            self.cfg = load_cfg()
+            rename_hypr(self.cfg)
+
+    def show_workspace(self, wid: str):
+        self._reload_if_needed()
+        wid = str(wid).strip()
+        if not wid or wid == self.last_id and self.phase != "idle":
+            if wid == self.last_id:
+                return False
+        self.last_id = wid
+        num, name = workspace_title(wid, self.cfg)
+        self.kicker.set_text(f"WORKSPACE  {num}")
+        self.title_l.set_text(name)
+        self.phase = "in"
+        self.target = 1.0
+        self.hold_until = 0.0
+        if self.tick_id:
+            GLib.source_remove(self.tick_id)
+        self.tick_id = GLib.timeout_add(16, self._tick)
+        return False
+
+    def _tick(self):
+        fade_in = max(80, int(self.cfg.get("fade_in_ms", 220)))
+        fade_out = max(80, int(self.cfg.get("fade_out_ms", 420)))
+        hold = max(200, int(self.cfg.get("hold_ms", 980)))
+        now = time.monotonic()
+        if self.phase == "in":
+            step = 16 / fade_in
+            self.opacity = min(1.0, self.opacity + step)
+            if self.opacity >= 1.0:
+                self.opacity = 1.0
+                self.phase = "hold"
+                self.hold_until = now + hold / 1000
+        elif self.phase == "hold":
+            if now >= self.hold_until:
+                self.phase = "out"
+        elif self.phase == "out":
+            step = 16 / fade_out
+            self.opacity = max(0.0, self.opacity - step)
+            if self.opacity <= 0.0:
+                self.opacity = 0.0
+                self.phase = "idle"
+                self.hud.set_opacity(0)
+                self.tick_id = 0
+                return False
+        self.hud.set_opacity(self.opacity)
+        return True
+
+    def _listen(self):
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.connect(str(hypr_socket()))
+        buf = b""
+        while True:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            buf += chunk
+            while b"\n" in buf:
+                line, buf = buf.split(b"\n", 1)
+                raw = line.decode("utf-8", "replace")
+                event, _, payload = raw.partition(">>")
+                if event not in ("workspace", "workspacev2"):
+                    continue
+                wid = payload.split(",", 1)[0].strip()
+                GLib.idle_add(self.show_workspace, wid)
+
+
+def main() -> int:
+    PID.parent.mkdir(parents=True, exist_ok=True)
+    preview = None
+    args = sys.argv[1:]
+    if args[:1] == ["--preview"]:
+        preview = args[1] if len(args) > 1 else "1"
+    elif args[:1] == ["--rename"]:
+        rename_hypr(load_cfg())
+        return 0
+    PID.write_text(str(os.getpid()))
+    app = WorkspaceOsd(preview=preview)
+    return app.run([])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

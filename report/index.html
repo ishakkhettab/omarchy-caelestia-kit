@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Omarchy kit report</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; color: var(--foreground); }
+    body { max-width: 720px; }
+    h1 { font-size: 22px; font-weight: 650; letter-spacing: -0.03em; margin: 0 0 6px; }
+    .lede { color: var(--muted-foreground); margin: 0 0 14px; font-size: 13px; line-height: 1.45; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+    .chip, button {
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--foreground);
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      font: inherit;
+    }
+    .chip.on { border-color: var(--accent); color: var(--accent); }
+    .item {
+      border: 1px solid var(--border);
+      background: var(--card);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin: 0 0 8px;
+      cursor: pointer;
+    }
+    .item header { display: flex; gap: 10px; align-items: baseline; }
+    .n { color: var(--accent); font-variant-numeric: tabular-nums; font-size: 12px; min-width: 1.6em; }
+    .item h2 { font-size: 14px; margin: 0; font-weight: 650; }
+    .tag { color: var(--muted-foreground); font-size: 11px; margin-left: auto; }
+    .body { display: none; color: var(--muted-foreground); font-size: 13px; line-height: 1.5; margin: 8px 0 0; }
+    .item.open .body { display: block; }
+    .body ul { margin: 6px 0 0; padding-left: 18px; }
+    pre {
+      white-space: pre-wrap;
+      font-size: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      margin: 8px 0 0;
+    }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h1>What we built</h1>
+  <p class="lede">Omarchy PC overlay: Caelestia looks, Omarchy binds, Kenney sounds, Jarvis dictation, Parakeet, cleanup model. Kit is at <code>~/Projects/omarchy-caelestia-kit</code>. GitHub CLI is not logged in, so it is not pushed yet. Click a step. Filter with chips.</p>
+  <div class="chips" id="chips"></div>
+  <div id="list"></div>
+  <div class="actions">
+    <button data-hermes-send="Push ~/Projects/omarchy-caelestia-kit to a new public GitHub repo after I log in with gh auth login">Push to GitHub when logged in</button>
+    <button data-hermes-send="Paste a new dictation orb component and install it as-is without changing the rendering">I have a new orb — install as-is</button>
+  </div>
+  <script>
+    const STEPS = [
+      {cat:"shell", t:"Caelestia look, Omarchy brain",
+       d:"Caelestia draws bar/background. Omarchy still owns Super+Space, Super+K, lock, menus. Autostart: omarchy-caelestia-start + wallpaper watch."},
+      {cat:"shell", t:"Theme lockstep",
+       d:"omarchy-sync-caelestia maps Omarchy colors.toml into Caelestia. Wallpaper watch follows omarchy theme bg next."},
+      {cat:"shell", t:"Glass + Super+Backspace",
+       d:"looknfeel.lua rounding 14, blur, vanish anims. Default opacities locked at 1 so hover cannot fight Super+Backspace (100→90→80→70 per window)."},
+      {cat:"sound", t:"Kenney System Sounds",
+       d:"Liked Kenney CC0 clicks. App: Super+Space → System Sounds. Window-switch sound is OFF. Workspace / open / close / fullscreen / float stay on."},
+      {cat:"shell", t:"Workspace titles",
+       d:"On switch, a named toast fades in then out. Default map: 1 Work, 2 Code, 3 Web, 4 Write, 5 Chat, 6 Mail, 7 Files, 8 Make, 9 Play, 0 Lab. Edit ~/.config/omarchy-workspaces/names.json."},
+      {cat:"voice", t:"Why dictation got slow",
+       d:"Whisper small + flash-attention on Intel HD 630 re-inited every transcript. Do not repeat. Engine is now Parakeet TDT 0.6B v3 int8 via voxtype-onnx-avx2."},
+      {cat:"voice", t:"Jarvis HUD",
+       d:"VoxUiRestyle with palette=omarchy. dictator dithered orb did not render well and is NOT the default. Switch with omarchy-voxtype-orb set jarvis|dictator|omarchy."},
+      {cat:"voice", t:"Cleanup pass",
+       d:"mumble-cleanup-2stage Qwen 0.5B GGUF. Warm daemon on :17842. Voxtype output.post_process.command = voxtype-cleanup. Fallback to raw text if daemon is down."},
+      {cat:"copy", t:"What other agents must do",
+       d:"Read AGENT.md in the kit. Run ./install.sh on the other Omarchy PC. Never edit /usr/share/omarchy. Download Parakeet with voxtype-onnx-avx2 (the Vulkan voxtype CLI cannot set engine=parakeet). Keep Super+Space and Super+K. Default orb: jarvis."}
+    ];
+    const AGENT = `cd ~/Projects/omarchy-caelestia-kit
+./install.sh
+# then follow AGENT.md:
+#  uv tool install caelestia-cli
+#  voxtype-onnx-avx2 setup --download --model parakeet-tdt-0.6b-v3-int8
+#  voxtype-onnx-avx2 config set engine parakeet
+#  omarchy-voxtype-orb set jarvis
+#  hyprctl reload && hyprctl configerrors`;
+    STEPS[STEPS.length-1].d += "<pre>" + AGENT.replace(/</g,"&lt;") + "</pre>";
+    let on = "all";
+    const cats = ["all","shell","sound","voice","copy"];
+    const chips = document.getElementById("chips");
+    cats.forEach(c => {
+      const b = document.createElement("button");
+      b.className = "chip" + (c===on?" on":"");
+      b.textContent = c;
+      b.onclick = () => { on=c; render(); [...chips.children].forEach(x => x.classList.toggle("on", x.textContent===on)); };
+      chips.appendChild(b);
+    });
+    function render(){
+      const root = document.getElementById("list");
+      root.innerHTML = "";
+      STEPS.filter(s => on==="all" || s.cat===on).forEach((s,i) => {
+        const el = document.createElement("article");
+        el.className = "item";
+        el.innerHTML = `<header><span class="n">${String(i+1).padStart(2,"0")}</span><h2>${s.t}</h2><span class="tag">${s.cat}</span></header><div class="body">${s.d}</div>`;
+        el.onclick = () => el.classList.toggle("open");
+        root.appendChild(el);
+      });
+    }
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Follow Omarchy theme wallpaper changes so Caelestia shows the same image.
+set -euo pipefail
+LINK_DIR="${HOME}/.local/state/omarchy/current"
+PATH_FILE="${HOME}/.local/state/caelestia/wallpaper/path.txt"
+
+sync_now() {
+  local src
+  src=$(readlink -f "${LINK_DIR}/background" 2>/dev/null || true)
+  [[ -n $src && -f $src ]] || return 0
+  mkdir -p "$(dirname "$PATH_FILE")"
+  printf '%s\n' "$src" >"$PATH_FILE"
+  "${HOME}/.local/bin/omarchy-sync-caelestia" >/dev/null 2>&1 || true
+}
+
+sync_now
+while inotifywait -q -e create,modify,move,attrib,delete "$LINK_DIR" "$LINK_DIR/background" 2>/dev/null; do
+  sync_now
+done

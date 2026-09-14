@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+"""Keep Caelestia colours and wallpapers in lockstep with the Omarchy theme."""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+from pathlib import Path
+
+HOME = Path.home()
+STATE_OMARCHY = HOME / ".local/state/omarchy/current"
+STATE_CAELESTIA = HOME / ".local/state/caelestia"
+WALL_DIR = HOME / "Pictures/Wallpapers"
+COLORS = STATE_OMARCHY / "theme" / "colors.toml"
+BG_LINK = STATE_OMARCHY / "background"
+BG_DIR = STATE_OMARCHY / "theme" / "backgrounds"
+
+
+def strip(hex_color: str) -> str:
+    return hex_color.strip().lstrip("#")[:6].lower()
+
+
+def load_omarchy_colors() -> dict[str, str]:
+    try:
+        import tomllib
+    except ImportError:
+        import tomli as tomllib  # type: ignore
+
+    data = tomllib.loads(COLORS.read_text()) if COLORS.exists() else {}
+    return {k: strip(v) if isinstance(v, str) and v.startswith("#") else v for k, v in data.items()}
+
+
+def build_scheme(c: dict[str, str]) -> dict:
+    bg = c.get("background", "101315")
+    dark_bg = c.get("dark_background", bg)
+    darker = c.get("darker_background", dark_bg)
+    fg = c.get("foreground", "cacccc")
+    light_fg = c.get("light_foreground", fg)
+    bright_fg = c.get("bright_foreground", fg)
+    accent = c.get("accent", "798186")
+    muted = c.get("muted", "4b4e55")
+    selection = c.get("selection", "343d41")
+    red = c.get("bright_red", c.get("red", "de6145"))
+    green = c.get("green", "9fa5a9")
+    yellow = c.get("yellow", "d9dbdc")
+    cyan = c.get("cyan", "707070")
+    magenta = c.get("magenta", "aeaeae")
+    blue = c.get("blue", accent)
+
+    return {
+        "name": "omarchy",
+        "flavour": Path(HOME / ".local/state/omarchy/current/theme.name").read_text().strip()
+        if (HOME / ".local/state/omarchy/current/theme.name").exists()
+        else "solitude",
+        "mode": c.get("mode", "dark"),
+        "variant": "neutral",
+        "colours": {
+            "primary_paletteKeyColor": accent,
+            "secondary_paletteKeyColor": muted,
+            "tertiary_paletteKeyColor": light_fg,
+            "neutral_paletteKeyColor": muted,
+            "neutral_variant_paletteKeyColor": selection,
+            "background": bg,
+            "onBackground": fg,
+            "surface": bg,
+            "surfaceDim": dark_bg,
+            "surfaceBright": selection,
+            "surfaceContainerLowest": darker,
+            "surfaceContainerLow": dark_bg,
+            "surfaceContainer": selection,
+            "surfaceContainerHigh": muted,
+            "surfaceContainerHighest": muted,
+            "onSurface": fg,
+            "surfaceVariant": selection,
+            "onSurfaceVariant": bright_fg,
+            "inverseSurface": fg,
+            "inverseOnSurface": dark_bg,
+            "outline": accent,
+            "outlineVariant": muted,
+            "shadow": "000000",
+            "scrim": "000000",
+            "surfaceTint": accent,
+            "primary": accent,
+            "onPrimary": bg,
+            "primaryContainer": selection,
+            "onPrimaryContainer": fg,
+            "inversePrimary": bright_fg,
+            "secondary": bright_fg,
+            "onSecondary": bg,
+            "secondaryContainer": muted,
+            "onSecondaryContainer": fg,
+            "tertiary": light_fg,
+            "onTertiary": bg,
+            "tertiaryContainer": selection,
+            "onTertiaryContainer": fg,
+            "error": red,
+            "onError": bg,
+            "errorContainer": "5a241c",
+            "onErrorContainer": "ffdad6",
+            "success": green,
+            "onSuccess": bg,
+            "successContainer": selection,
+            "onSuccessContainer": fg,
+            "primaryFixed": fg,
+            "primaryFixedDim": accent,
+            "onPrimaryFixed": darker,
+            "onPrimaryFixedVariant": muted,
+            "secondaryFixed": fg,
+            "secondaryFixedDim": bright_fg,
+            "onSecondaryFixed": darker,
+            "onSecondaryFixedVariant": muted,
+            "tertiaryFixed": light_fg,
+            "tertiaryFixedDim": yellow,
+            "onTertiaryFixed": darker,
+            "onTertiaryFixedVariant": muted,
+            "term0": darker,
+            "term1": red,
+            "term2": green,
+            "term3": yellow,
+            "term4": blue,
+            "term5": magenta,
+            "term6": cyan,
+            "term7": fg,
+            "term8": muted,
+            "term9": red,
+            "term10": green,
+            "term11": yellow,
+            "term12": blue,
+            "term13": magenta,
+            "term14": cyan,
+            "term15": "ffffff",
+        },
+    }
+
+
+def sync_wallpapers() -> Path | None:
+    WALL_DIR.mkdir(parents=True, exist_ok=True)
+    dest = WALL_DIR / "omarchy"
+    if BG_DIR.is_dir():
+        if dest.is_symlink() or dest.exists():
+            if dest.is_symlink():
+                dest.unlink()
+            elif dest.is_dir() and not any(dest.iterdir()):
+                dest.rmdir()
+        if not dest.exists():
+            dest.symlink_to(BG_DIR)
+
+    current = None
+    if BG_LINK.exists():
+        current = BG_LINK.resolve()
+        copy = WALL_DIR / "omarchy-current.jpg"
+        try:
+            shutil.copy2(current, copy)
+        except OSError:
+            pass
+        wall_state = STATE_CAELESTIA / "wallpaper"
+        wall_state.mkdir(parents=True, exist_ok=True)
+        (wall_state / "path.txt").write_text(str(current) + "\n")
+    return current
+
+
+def write_cli_scheme_file(scheme: dict) -> None:
+    """Official CLI reads name/flavour/mode from a .txt next to its bundled schemes."""
+    roots = list((HOME / ".local/share/uv/tools/caelestia").glob("**/caelestia/data/schemes"))
+    if not roots:
+        return
+    dest = roots[0] / scheme["name"] / scheme["flavour"] / f"{scheme['mode']}.txt"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text("".join(f"{k} {v}\n" for k, v in scheme["colours"].items()))
+
+
+def main() -> None:
+    STATE_CAELESTIA.mkdir(parents=True, exist_ok=True)
+    scheme = build_scheme(load_omarchy_colors())
+    (STATE_CAELESTIA / "scheme.json").write_text(json.dumps(scheme, indent=2) + "\n")
+    write_cli_scheme_file(scheme)
+    sync_wallpapers()
+
+
+if __name__ == "__main__":
+    main()
