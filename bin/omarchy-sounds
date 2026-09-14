@@ -30,6 +30,8 @@ DEFAULTS = {
         "window_switch": {"enabled": True, "file": "switch27.wav", "volume": 0.9},
         "fullscreen": {"enabled": True, "file": "switch25.wav", "volume": 1.0},
         "float": {"enabled": True, "file": "click1.wav", "volume": 0.75},
+        "theme_change": {"enabled": True, "file": "switch31.wav", "volume": 0.9},
+        "wallpaper_change": {"enabled": True, "file": "switch34.wav", "volume": 0.85},
     },
 }
 
